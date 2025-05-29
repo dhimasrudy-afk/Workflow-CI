@@ -1,0 +1,14 @@
+# MLProject_folder/MLproject
+
+name: DebernardiCancerPrediction
+
+# Lingkungan conda untuk menjalankan project
+conda_env: conda.yaml
+
+# Entry points (perintah yang bisa dijalankan)
+entry_points:
+  main:
+    parameters:
+      data_path: {type: str, default: "dataset_preprocessing/debernardi_2020_preprocessed.csv"}
+      experiment_name: {type: str, default: "CI_Experiment_GitHubActions"}
+    command: "python modelling.py --data_path {data_path} --experiment_name {experiment_name}"
