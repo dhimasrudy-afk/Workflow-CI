@@ -1,0 +1,81 @@
+# .github/workflows/ci_workflow.yml
+
+name: CI Model Retraining
+
+on: workflow_dispatch # Trigger untuk menjalankan workflow
+
+permissions:
+  contents: write # ✅ This allows the workflow to push commits
+
+jobs:
+  retrain-model:
+    runs-on: ubuntu-latest
+
+    defaults: # Set direktori kerja default untuk semua langkah di job ini
+      run:
+        working-directory: ./MLProject # Semua perintah run akan dieksekusi dari sini
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11' # Sesuaikan dengan conda.yaml
+
+      - name: Set up Conda (Miniconda)
+        uses: conda-incubator/setup-miniconda@v3 # Action untuk setup Miniconda
+        with:
+          auto-update-conda: true
+          python-version: '3.11' # Sesuaikan
+          # mamba-version: "*" # Opsional, bisa mempercepat pembuatan environment
+          # channels: conda-forge,defaults # Opsional, bisa diset di sini atau dari conda.yaml
+          activate-environment: mlflow-debernardi-env # Nama environment dari conda.yaml
+          environment-file: MLProject/conda.yaml # Path ke conda.yaml dari root repo
+          use-mamba: false # Set true jika ingin menggunakan mamba
+
+      - name: Install MLflow
+        shell: bash -l {0} # Memastikan environment conda aktif
+        run: |
+          pip install mlflow
+
+      - name: Run MLflow Project
+        shell: bash -l {0} # Memastikan environment conda aktif
+        run: |
+          mlflow run .
+          # Jika MLproject ada di subdirectory (misal MLProject_folder dari root):
+          # mlflow run ./MLProject
+          # Karena kita sudah set working-directory, mlflow run . seharusnya cukup
+          # Jika Anda ingin meneruskan parameter:
+          # mlflow run . -P data_path="dataset_preprocessing/debernardi_2020_preprocessed.csv" -P experiment_name="CI_Run_From_GitHub"
+
+      # Untuk Kriteria Skilled/Advance, tambahkan langkah untuk menyimpan artefak
+      # Untuk Basic, cukup sampai menjalankan MLflow Project.
+      # MLflow secara default akan membuat folder mlruns di dalam MLProject_folder
+      # jika tracking URI tidak diset ke remote.
+
+      - name: Archive mlruns folder
+        shell: bash -l {0}
+        run: |
+          # Pastikan kita berada di direktori yang benar untuk membuat arsip
+          # Karena working-directory default adalah ./MLProject, 
+          # mlruns akan ada di dalamnya.
+          if [ -d "mlruns" ]; then
+            tar -czvf mlruns_archive.tar.gz mlruns
+            echo "mlruns folder archived to mlruns_archive.tar.gz"
+          else
+            echo "mlruns folder not found after MLflow run."
+            # Anda bisa memilih untuk menggagalkan workflow di sini jika mlruns penting
+            # exit 1 
+          fi
+        # Tidak perlu lagi set working-directory di sini jika default sudah benar
+
+      - name: Upload mlruns as artifact
+        uses: actions/upload-artifact@v4
+        if: success() # Hanya jalankan jika langkah sebelumnya berhasil dan mlruns_archive.tar.gz ada
+        with:
+          name: mlruns-output-ci
+          path: ./MLProject/mlruns_archive.tar.gz # Path relatif terhadap root repository
+                                                 # atau cukup mlruns_archive.tar.gz jika archive
+                                                 # dibuat di dalam working-directory (./MLProject)
